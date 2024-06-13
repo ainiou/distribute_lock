@@ -2,6 +2,7 @@ package distribute_lock
 
 import (
 	"fmt"
+	"github.com/ainiou/distribute_lock/lock_conn"
 	"github.com/garyburd/redigo/redis"
 	"testing"
 	"time"
@@ -14,8 +15,9 @@ func before() {
 
 	pool = newPool("127.0.0.1:6379", "root", 0)
 	conn := pool.Get()
+	lockConn := lock_conn.NewRedigoConn(conn)
 	//defer conn.Close()
-	DL = NewDistributeLock(conn,
+	DL = NewDistributeLock(lockConn,
 		WithMaxRetryTime(3),
 		WithBackoffList([]time.Duration{time.Millisecond * 50, time.Millisecond * 500, time.Second * 2}),
 	)
@@ -52,7 +54,7 @@ func newPool(addr, password string, db int) *redis.Pool {
 func TestDistributeLock_ObtainLock(t *testing.T) {
 	before()
 	lockVal := fmt.Sprintf("%d", time.Now().Nanosecond())
-	obtainLock, err := DL.ObtainLock("lockTest", lockVal, 1000)
+	obtainLock, err := DL.conn.ObtainLock("lockTest", lockVal, 1000)
 	if err != nil {
 		t.Errorf("err:%v", err)
 		return
@@ -60,7 +62,7 @@ func TestDistributeLock_ObtainLock(t *testing.T) {
 	t.Logf("botain:%v", obtainLock)
 
 	time.Sleep(15 * time.Second)
-	err = DL.ReleaseLock("lockTest", lockVal)
+	err = DL.conn.ReleaseLock("lockTest", lockVal)
 	if err != nil {
 		t.Errorf("err:%v", err)
 		return
@@ -70,7 +72,7 @@ func TestDistributeLock_ObtainLock(t *testing.T) {
 
 func TestDistributeLock_ReleaseLock(t *testing.T) {
 	before()
-	err := DL.ReleaseLock("lockTest", "done")
+	err := DL.conn.ReleaseLock("lockTest", "done")
 	if err != nil {
 		t.Errorf("err:%v", err)
 		return
